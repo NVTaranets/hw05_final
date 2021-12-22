@@ -183,10 +183,9 @@ class TaskFormsTests(TestCase):
     def test_post_comment(self):
         """проверяем создание коментариев поста"""
 
+        text_comment = 'test text comment'
         post_id = str(self.post.pk)
 
-        # невозможность отправки формы комментирования не авторизованным
-        # пользователем проверена в test_urls.py
         response = self.authorized_client.get(
             reverse('posts:post_detail', kwargs={'post_id': post_id})
         )
@@ -205,7 +204,7 @@ class TaskFormsTests(TestCase):
             reverse('posts:add_comment',
                     kwargs={'post_id': str(self.post.pk)}
                     ),
-            {'text': 'test text comment',
+            {'text': text_comment,
              },
         )
         self.assertRedirects(
@@ -216,9 +215,36 @@ class TaskFormsTests(TestCase):
             msg_prefix='Не работает редирект после коментирования поста'
         )
 
-        # проверим, что на странице поста передан один коментарий
+        # снова старый спор?
+        # невозможность отправки формы комментирования не авторизованным
+        # пользователем проверена в test_urls.py не важно какой тип запроса
+        # будет GET или POST с формой или без
+        # но если сильно надо, то повторимся здесь...
+        response = self.guest_client.post(
+            reverse('posts:add_comment',
+                    kwargs={'post_id': str(self.post.pk)}
+                    ),
+            {'text': text_comment + ' guest',
+             },
+        )
+
+        # проверим, что на страницу поста передан один коментарий
+        # и его содержимое соответствует ожидаемому
+        # но опять же здесь было бы уместнее проверить, что комментарий
+        # появился в базе, а так может мы со вьюхой напортачили и форма
+        # то отработала, а на страницу коментарий не отдали в контексте
         with self.subTest(subTest='отображение коментария на странице поста'):
-            response = self.authorized_client.get(
+            response = self.guest_client.get(
                 reverse('posts:post_detail', kwargs={'post_id': post_id})
             )
+            # если смог прокоментировать неавторизованый, то не совпадет
+            # количество коментариев или текст коментария
             self.assertEqual(len(response.context['comments']), 1)
+            self.assertEqual(
+                response.context['comments'][0].text,
+                text_comment
+            )
+            self.assertEqual(
+                response.context['comments'][0].author,
+                self.user1
+            )

@@ -45,37 +45,14 @@ class TaskURLTests(TestCase):
                        in zip(cls.user_name, (Client(), Client(), Client()))}
         cls.clients[AUTORIZED_ROLE].force_login(cls.users[AUTORIZED_ROLE])
         cls.clients[AUTHOR_ROLE].force_login(cls.users[AUTHOR_ROLE])
-
-    def test_static(self):
-        """Проверяем, что корректно работают статические страницы"""
-        # (( url, template), )
-        static_url_list = (
-            ('/', 'posts/index.html'),
-            ('/about/author/', 'about/authors.html'),
-            ('/about/tech/', 'about/tech.html'),
-        )
-        # Отправляем запрос через client,
-        # по списку статических страниц
-        for url, template in static_url_list:
-            with self.subTest(url=url):
-                response = TaskURLTests.clients[GUEST_ROLE].get(url)
-                self.assertEqual(response.status_code, HTTPStatus.OK,
-                                 f'Тест статической страницы по адресу: '
-                                 f' {url} не пройден!')
-                self.assertTemplateUsed(response, template,
-                                        f'Ошибка шаблона для страницы {url}'
-                                        )
-
-    def test_urls_and_templates_and_redirect(self):
-        """Проверяем, что работают urls"""
-        post_id = str(TaskURLTests.post_author.pk)
+        post_id = str(cls.post_author.pk)
         url_group = reverse(
             'posts:group_list',
-            kwargs={'slug': TaskURLTests.group.slug}
+            kwargs={'slug': cls.group.slug}
         )
         url_profile = reverse(
             'posts:profile',
-            kwargs={'username': TaskURLTests.post_author.author}
+            kwargs={'username': cls.post_author.author}
         )
         url_login = reverse('login')
         url_post = reverse('posts:post_detail', kwargs={'post_id': post_id})
@@ -84,15 +61,17 @@ class TaskURLTests(TestCase):
         url_comment = reverse('posts:add_comment', kwargs={'post_id': post_id})
         url_follow = reverse(
             'posts:profile_follow',
-            kwargs={'username': TaskURLTests.post_author.author}
+            kwargs={'username': cls.post_author.author}
         )
         url_unfollow = reverse(
             'posts:profile_unfollow',
-            kwargs={'username': TaskURLTests.post_author.author}
+            kwargs={'username': cls.post_author.author}
         )
-
-        # { f'{url}:{user_name}': (template, [redirect]),}
-        url_tests = {
+        # словарь исходных данных для тестов
+        # ключ содержит url и имя пользователя
+        # значение это список из 2 элементов:
+        # шаблона, [и адреса редиректа (если он есть)]
+        cls.dict_tests = {
             f'/:{GUEST_ROLE}': ('posts/index.html',),
             f'{url_group}:{GUEST_ROLE}': ('posts/group_list.html',),
             f'{url_profile}:{GUEST_ROLE}': ('posts/profile.html',),
@@ -123,48 +102,77 @@ class TaskURLTests(TestCase):
                 'posts/profile.html',
                 url_profile
             ),
-            f'/unexisting_page/:{GUEST_ROLE}': tuple(),
         }
-        # Отправляем запрос через client,
-        # по словарю страниц
-        # ключ содержит url и имя пользователя
-        # значение это список из 2 элементов:
-        # шаблона, [и адреса редиректа (если он есть)]
-        for url_user, data in url_tests.items():
-            url, user_name = url_user.split(':')
-            client = self.clients[user_name]
-            with self.subTest(url_user_data=(url, user_name, data)):
-                if len(data) == 0:
-                    response = client.get(url)
-                    self.assertEqual(response.status_code,
-                                     HTTPStatus.NOT_FOUND,
-                                     (f'Тест по адресу: '
-                                      f'{url} не пройден!'
-                                      )
-                                     )
-                else:
-                    templates = data[0]
-                    response = client.get(url, follow=(len(data) == 2))
-                    if len(data) == 2:
-                        url_redirect = data[1]
-                        msg = (f'Тест редиректа адреса: {url} не пройден! '
-                               f'для клиента {user_name}'
-                               )
-                        self.assertRedirects(response,
-                                             url_redirect,
-                                             msg_prefix=msg
-                                             )
-                    else:
-                        self.assertEqual(response.status_code, HTTPStatus.OK,
-                                         (f'Тест адреса: '
-                                          f'{url} не пройден! '
-                                          f'для клиента {user_name}'
-                                          )
-                                         )
 
-                    self.assertTemplateUsed(response, templates,
-                                            (f'Тест шаблона по адресу: '
-                                             f'{url} не пройден! '
-                                             f'для клиента {user_name}'
-                                             )
-                                            )
+    def decode_dict_tests(self, case_test: int):
+        """функция возвращает список каждый элемент которого:
+        list(connection, url, expected)
+        на вход принимает код теста:
+        0 - тест шаблона и адреса
+        1 - тест редиректа адреса"""
+
+        result = list()
+        for url_user, data in TaskURLTests.dict_tests.items():
+            url, user_name = url_user.split(':')
+            client = TaskURLTests.clients[user_name]
+            # если выбираем редиректы, то выдаем адреса
+            # только те у кого они есть
+            if case_test < len(data):
+                result.append((client, url, data[case_test]))
+        return result
+
+    def test_static(self):
+        """Проверяем, что корректно работают статические страницы"""
+        static_url_list = (
+            ('/', 'posts/index.html'),
+            ('/about/author/', 'about/authors.html'),
+            ('/about/tech/', 'about/tech.html'),
+        )
+        # Отправляем запрос через client,
+        # по списку статических страниц
+        for url, template in static_url_list:
+            with self.subTest(url=url):
+                response = TaskURLTests.clients[GUEST_ROLE].get(url)
+                self.assertEqual(response.status_code, HTTPStatus.OK,
+                                 f'Тест статической страницы по адресу: '
+                                 f' {url} не пройден!')
+                self.assertTemplateUsed(response, template,
+                                        f'Ошибка шаблона для страницы {url}'
+                                        )
+
+    def test_urls_unexisting(self):
+        """Проверяем, url несуществующей страницы"""
+        response = TaskURLTests.clients[GUEST_ROLE].get('/unexisting_page/')
+        self.assertEqual(response.status_code,
+                         HTTPStatus.NOT_FOUND,
+                         )
+
+    def urls_and_templates(self):
+        """Проверяем, что работают urls для разных ползователей"""
+        for test in TaskURLTests.decode_dict_tests(self, 0):
+            # test = list(connection, url, expexted)
+            client, url, templates = test
+            response = client.get(url, follow=True)
+            user_name = GUEST_ROLE or response.user.username
+            msg = f'{url} не пройден! для клиента {user_name}'
+            with self.subTest(url_user_data=(url, user_name, templates)):
+                self.assertEqual(response.status_code, HTTPStatus.OK,
+                                 'Тест по адресу:' + msg)
+
+                self.assertTemplateUsed(response, templates,
+                                        'Тест шаблона по адресу: ' + msg)
+
+    def test_redirect(self):
+        """Проверяем, что работают редиректы urls для разных ползователей"""
+        for test in TaskURLTests.decode_dict_tests(self, 1):
+            # test = list(connection, url, expexted)
+            client, url, url_redirect = test
+            response = client.get(url, follow=True)
+            user_name = GUEST_ROLE or response.user.username
+            msg = (f'Тест редиректа по адресу {url} '
+                   f'не пройден! для клиента {user_name}')
+            with self.subTest(url_user_data=(url, user_name, url_redirect)):
+                self.assertRedirects(response,
+                                     url_redirect,
+                                     msg_prefix=msg
+                                     )

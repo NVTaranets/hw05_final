@@ -1,7 +1,8 @@
 from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
-from posts.models import Post
 from sorl.thumbnail import delete
+
+from posts.models import Post
 
 
 @receiver(post_delete, sender=Post)

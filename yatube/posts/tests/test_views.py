@@ -27,15 +27,14 @@ class TaskPagesTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.groups = list()
-        for num in range(3):
-            cls.groups.append(
-                Group.objects.create(
-                    title='Тестовая группа ' + str(num),
-                    slug='slug' + str(num),
-                    description='Тестовое описание ' + str(num),
-                )
-            )
+        cls.groups = Group.objects.bulk_create(
+            Group(
+                pk=num,
+                title='Тестовая группа ' + str(num),
+                slug='slug' + str(num),
+                description='Тестовое описание ' + str(num),
+            ) for num in range(3)
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -142,7 +141,7 @@ class TaskPagesTests(TestCase):
             'text': (forms.fields.CharField,
                      post_text
                      ),
-            'group': (forms.fields.ChoiceField, 1),
+            'group': (forms.fields.ChoiceField, 0),
         }
 
         # Проверяем, что типы полей формы в словаре context
@@ -311,13 +310,9 @@ class TaskPagesTests(TestCase):
             response.content,
             f'Не работает кэш или страница {url_index}')
 
-    def test_follow_unfollow(self):
+    def test_follow(self):
         url_follow = reverse(
             'posts:profile_follow',
-            kwargs={'username': self.user2.username}
-        )
-        url_unfollow = reverse(
-            'posts:profile_unfollow',
             kwargs={'username': self.user2.username}
         )
         self.authorized_client.get(url_follow)
@@ -327,6 +322,16 @@ class TaskPagesTests(TestCase):
                 author=self.user2
             ).exists(),
             'Не работает подписка на автора')
+
+    def test_unfollow(self):
+        url_unfollow = reverse(
+            'posts:profile_unfollow',
+            kwargs={'username': self.user2.username}
+        )
+        Follow.objects.create(
+            user=self.user1,
+            author=self.user2
+        )
         self.authorized_client.get(url_unfollow)
         self.assertFalse(
             Follow.objects.filter(
@@ -336,17 +341,10 @@ class TaskPagesTests(TestCase):
             'Не работает отписка от автора')
 
     def test_follow_index(self):
-        user3 = User.objects.create_user(username='Author3')
         Follow.objects.create(
             user=self.user1,
-            author=user3
+            author=self.user2
         )
-        Post.objects.create(
-            author=user3,
-            text='Тестовый пост третьего автора'
-        )
-        client2 = Client()
-        client2.force_login(self.user2)
         url_follow_index = reverse(
             'posts:follow_index'
         )
@@ -356,9 +354,15 @@ class TaskPagesTests(TestCase):
             1,
             'Не отобразился пост на странице подписанного пользователя'
         )
-        response = client2.get(url_follow_index)
+
+    def test_not_follow_index(self):
+        url_follow_index = reverse(
+            'posts:follow_index'
+        )
+        response = self.authorized_client.get(url_follow_index)
         self.assertEqual(
             len(response.context['page_obj']),
             0,
-            'Отобразился пост на странице не подписанного пользователя'
+            ('Отобразился пост на странице '
+             'подписок не подписанного пользователя')
         )
