@@ -72,7 +72,7 @@ def post_detail(request, post_id):
         'post': post,
         'form': form,
         'form_comment_action': reverse('posts:add_comment',
-                               kwargs={'post_id': post_id}),
+                                       kwargs={'post_id': post_id}),
         'comments': comments
     }
     return render(request, 'posts/post_detail.html', context)
