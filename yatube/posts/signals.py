@@ -10,7 +10,6 @@ def post_save_image(sender, instance, *args, **kwargs):
     """ Clean Old Image file """
     try:
         old_img = instance.__class__.objects.get(id=instance.id).image.name
-        # instance.image.delete(save=False)
         delete(old_img)
     except Exception:
         pass
